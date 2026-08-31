@@ -29,6 +29,7 @@ Generated from `skills.json`.
 | [Commercial Portfolio Review](./productivity/commercial-portfolio-review/SKILL.md) | A portfolio view is produced showing contracts by product type with premium aggregation and top category highlights. |
 | [Manager Tool: Team Member Monthly Review](./productivity/manager-monthly-team-review/SKILL.md) | The manager selects a Relationship Manager and receives a structured monthly review with KPIs, strengths, and attention points. |
 | [Plan My Day](./productivity/plan-my-day/SKILL.md) | A concise operational dashboard is produced with top alerts, ready-to-send messages, a metric of the day, and next actions aligned with actual calendar availability. |
+| [Reaffectation Taches Absence](./productivity/reaffectation-taches-absence/SKILL.md) | Produit un plan de continuite pour absence de 2 semaines avec inventaire des taches, reaffectation par collegue, risques, et plan de communication. |
 | [Weekly Activity Summary](./productivity/weekly-activity-summary/SKILL.md) | A concise weekly report is delivered with core KPIs, trend direction versus last week, and a focused diagnostic of strengths and improvement priorities. |
 
 ### Sales Management
@@ -42,3 +43,10 @@ Generated from `skills.json`.
 | [Prepare My Next Meeting](./sales-management/prepare-next-meeting/SKILL.md) | The user selects one upcoming meeting and receives a structured 3-table briefing plus targeted cross-sell arguments and a closing opportunity. |
 | [Received Leads Today](./sales-management/received-leads-today/SKILL.md) | A prioritized list of today's leads is displayed with a clear summary of total volume and urgent follow-ups. |
 | [Renewal Follow-up](./sales-management/renewal-follow-up/SKILL.md) | Renewal reminder emails are sent automatically, 7-day follow-up tasks are created, and the manager receives a clear sent-volume summary. |
+| [Contact Outreach Advisor](./sales-management/contact-outreach-advisor/SKILL.md) | Outreach recommendations identify the best channel and timing for each contact based on communication history patterns. |
+| [Deal Health Reviewer](./sales-management/deal-health-reviewer/SKILL.md) | Opportunities are scored across momentum, coverage, and execution hygiene to reveal risk and the fastest recovery actions. |
+| [Exec Brief Generator](./sales-management/exec-brief-generator/SKILL.md) | Leadership-ready business briefs summarize forecast movement, risk concentration, and required interventions with ownership. |
+| [Meeting Prep Brief](./sales-management/meeting-prep-brief/SKILL.md) | Pre-meeting packs consolidate account context, stakeholder signals, risk flags, and a targeted meeting action plan. |
+| [Mutual Action Plan Builder](./sales-management/mutual-action-plan-builder/SKILL.md) | Buyer-seller close plans align milestones, dependencies, and owners to reduce slippage and improve decision certainty. |
+| [Opportunity Prioritizer](./sales-management/opportunity-prioritizer/SKILL.md) | Deal ranking focuses effort on opportunities with the highest expected return, timing urgency, and practical next steps. |
+| [Renewal Risk Detector](./sales-management/renewal-risk-detector/SKILL.md) | Renewal cohorts are risk-scored early so teams can execute targeted save actions before churn occurs. |
