@@ -1,0 +1,158 @@
+{
+  "title": "Account Summary Widget Example",
+  "description": "Displays key account details with a direct link to the account record.",
+  "type": "object",
+  "properties": {
+    "attributes": {
+      "lightning:type": "lightning__objectType",
+      "properties": {
+        "accountName": {
+          "title": "Account Name",
+          "description": "Primary account display name.",
+          "lightning:type": "lightning__textType"
+        },
+        "accountSubtitle": {
+          "title": "Account Subtitle",
+          "description": "Secondary line shown below the account name.",
+          "lightning:type": "lightning__textType"
+        },
+        "ownerName": {
+          "title": "Owner Name",
+          "description": "Name of the account owner.",
+          "lightning:type": "lightning__textType"
+        },
+        "arrLabel": {
+          "title": "ARR Label",
+          "description": "Formatted annual recurring revenue value.",
+          "lightning:type": "lightning__textType"
+        },
+        "accountUrl": {
+          "title": "Account URL",
+          "description": "Absolute URL opened by the button action.",
+          "lightning:type": "lightning__textType"
+        },
+        "accountTier": {
+          "title": "Account Tier",
+          "description": "Commercial tier label for the account.",
+          "lightning:type": "lightning__textType"
+        },
+        "arrDeltaLabel": {
+          "title": "ARR Delta Label",
+          "description": "ARR trend display label.",
+          "lightning:type": "lightning__textType"
+        },
+        "employeesLabel": {
+          "title": "Employees Label",
+          "description": "Employee count display label.",
+          "lightning:type": "lightning__textType"
+        },
+        "healthScore": {
+          "title": "Health Score",
+          "description": "Health score from 0 to 100.",
+          "lightning:type": "lightning__numberType"
+        },
+        "renewalDateLabel": {
+          "title": "Renewal Date Label",
+          "description": "Renewal date display text.",
+          "lightning:type": "lightning__textType"
+        },
+        "renewalStatusLabel": {
+          "title": "Renewal Status Label",
+          "description": "Renewal status display text.",
+          "lightning:type": "lightning__textType"
+        },
+        "renewalStatusVariant": {
+          "title": "Renewal Status Variant",
+          "description": "Badge variant for renewal status.",
+          "lightning:type": "lightning__textType"
+        },
+        "ownerInitials": {
+          "title": "Owner Initials",
+          "description": "Initials used by owner avatar.",
+          "lightning:type": "lightning__textType"
+        },
+        "openPipelineLabel": {
+          "title": "Open Pipeline Label",
+          "description": "Formatted open pipeline amount.",
+          "lightning:type": "lightning__textType"
+        },
+        "opportunities": {
+          "title": "Opportunities",
+          "description": "Opportunity summaries.",
+          "lightning:type": "lightning__listType",
+          "items": {
+            "lightning:type": "lightning__objectType",
+            "properties": {
+              "name": {
+                "title": "Name",
+                "lightning:type": "lightning__textType"
+              },
+              "closeDateLabel": {
+                "title": "Close Date Label",
+                "lightning:type": "lightning__textType"
+              },
+              "stageName": {
+                "title": "Stage Name",
+                "lightning:type": "lightning__textType"
+              },
+              "stageVariant": {
+                "title": "Stage Variant",
+                "lightning:type": "lightning__textType"
+              },
+              "amountLabel": {
+                "title": "Amount Label",
+                "lightning:type": "lightning__textType"
+              }
+            }
+          }
+        },
+        "contacts": {
+          "title": "Contacts",
+          "description": "Contact summaries.",
+          "lightning:type": "lightning__listType",
+          "items": {
+            "lightning:type": "lightning__objectType",
+            "properties": {
+              "initials": {
+                "title": "Initials",
+                "lightning:type": "lightning__textType"
+              },
+              "name": {
+                "title": "Name",
+                "lightning:type": "lightning__textType"
+              },
+              "title": {
+                "title": "Title",
+                "lightning:type": "lightning__textType"
+              },
+              "lastTouchLabel": {
+                "title": "Last Touch Label",
+                "lightning:type": "lightning__textType"
+              }
+            }
+          }
+        },
+        "nextSteps": {
+          "title": "Next Steps",
+          "description": "Suggested next-step actions rendered as buttons.",
+          "lightning:type": "lightning__listType",
+          "items": {
+            "lightning:type": "lightning__objectType",
+            "properties": {
+              "label": {
+                "title": "Label",
+                "description": "Button label shown to the user.",
+                "lightning:type": "lightning__textType"
+              },
+              "prompt": {
+                "title": "Prompt",
+                "description": "Message sent to the agent when the button is clicked.",
+                "lightning:type": "lightning__textType"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<UiWidgetBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <masterLabel>Account Summary Widget Example</masterLabel>
+    <description>Shows account summary details and a quick open-account action.</description>
+    <widgetType>JSON</widgetType>
+</UiWidgetBundle>
