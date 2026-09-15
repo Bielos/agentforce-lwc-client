@@ -1,0 +1,27 @@
+{
+  "renderer": {
+    "componentOverrides": {
+      "$": {
+        "definition": "@widget/c/accountSummaryWidgetExample",
+        "attributes": {
+          "accountName": "{!$attrs.accountName}",
+          "accountSubtitle": "{!$attrs.accountSubtitle}",
+          "ownerName": "{!$attrs.ownerName}",
+          "arrLabel": "{!$attrs.arrLabel}",
+          "accountUrl": "{!$attrs.accountUrl}",
+          "accountTier": "{!$attrs.accountTier}",
+          "arrDeltaLabel": "{!$attrs.arrDeltaLabel}",
+          "employeesLabel": "{!$attrs.employeesLabel}",
+          "healthScore": "{!$attrs.healthScore}",
+          "renewalDateLabel": "{!$attrs.renewalDateLabel}",
+          "renewalStatusLabel": "{!$attrs.renewalStatusLabel}",
+          "renewalStatusVariant": "{!$attrs.renewalStatusVariant}",
+          "ownerInitials": "{!$attrs.ownerInitials}",
+          "openPipelineLabel": "{!$attrs.openPipelineLabel}",
+          "opportunities": "{!$attrs.opportunities}",
+          "contacts": "{!$attrs.contacts}"
+        }
+      }
+    }
+  }
+}

@@ -48,6 +48,7 @@ export default class AgentforceChat extends LightningElement {
   @api voiceLanguage = "en-US";
   @api showCitations = false;
   @api mode = "uncontrolled";
+  @api seededMessages = [];
 
   @track messages = [];
   @track state = STATE.IDLE;
@@ -72,6 +73,7 @@ export default class AgentforceChat extends LightningElement {
   activeConversationId;
   _agentApiName = "";
   selectedAgentApiName = "";
+  _seedApplied = false;
 
   @api
   get agentApiName() {
@@ -92,9 +94,13 @@ export default class AgentforceChat extends LightningElement {
     this.initializeHistory();
     this.initializeWelcomeMessage();
     this.loadSkills();
+    this.applySeededMessages();
   }
 
   renderedCallback() {
+    // seededMessages may arrive from the parent after connectedCallback, so
+    // apply it here too (guarded to run only once).
+    this.applySeededMessages();
     this.scrollToBottom();
   }
 
@@ -159,6 +165,51 @@ export default class AgentforceChat extends LightningElement {
       return;
     }
     this.appendMessage("system", trimmed);
+  }
+
+  // Populate the chat with a pre-existing transcript (array of {role, content})
+  // for display, without contacting the agent. Used to render a stored
+  // conversation. Applied once so parent re-renders do not clobber live chat.
+  applySeededMessages() {
+    if (this._seedApplied) {
+      return;
+    }
+    if (
+      !Array.isArray(this.seededMessages) ||
+      this.seededMessages.length === 0
+    ) {
+      return;
+    }
+    // A provided transcript wins over any welcome message or stored localStorage
+    // history for this agent.
+    this._seedApplied = true;
+    this.messages = this.normalizeStoredMessages(this.seededMessages);
+    this.hasInteracted = this.messages.length > 0;
+  }
+
+  // Replay the user turns currently shown in the chat against the agent,
+  // starting a fresh session. Each turn flows through the normal send pipeline,
+  // so responses render as bubbles and `message` events fire for capture.
+  @api
+  async replay() {
+    const userTurns = this.messages
+      .filter((message) => message.role === "user")
+      .map((message) => message.content);
+    if (userTurns.length === 0 || !this.hasSelectedAgent) {
+      if (!this.hasSelectedAgent) {
+        this.addSystemMessage("Select an agent before replaying.");
+      }
+      return;
+    }
+    this.messages = [];
+    this.lastFailedUserMessage = null;
+    this.localSessionId = null;
+    this.persistSessionId(null);
+    this.hasInteracted = true;
+    for (const text of userTurns) {
+      // eslint-disable-next-line no-await-in-loop
+      await this.handleSend(text, { focusInput: false });
+    }
   }
 
   get isBusy() {
@@ -385,8 +436,6 @@ export default class AgentforceChat extends LightningElement {
     this.agentLoadErrorMessage = "";
     try {
       const records = await getConfiguredAgents();
-      // eslint-disable-next-line no-console
-      console.log("[agentforceChat] getConfiguredAgents raw:", records);
       this.availableAgents = Array.isArray(records)
         ? records
             .map((record) => ({
@@ -426,7 +475,6 @@ export default class AgentforceChat extends LightningElement {
         error?.message ||
         "Unknown error while loading available agents.";
       this.agentLoadErrorMessage = message;
-      // eslint-disable-next-line no-console
       console.error(
         "[agentforceChat] Failed to load available agents:",
         JSON.parse(JSON.stringify(error || {}))
@@ -520,10 +568,7 @@ export default class AgentforceChat extends LightningElement {
 
   get normalizedMessages() {
     return this.messages.map((message, index) => {
-      const widgets = this.normalizeWidgets(
-        message.widgets,
-        message.valueJson
-      );
+      const widgets = this.normalizeWidgets(message.widgets, message.valueJson);
       return {
         ...message,
         renderKey: `${index}:${message.id}`,
@@ -556,10 +601,28 @@ export default class AgentforceChat extends LightningElement {
           this.showCitations &&
           message.citations &&
           message.citations.length > 0,
+        hasDuration:
+          message.role === "assistant" &&
+          typeof message.durationMs === "number",
+        durationLabel: this.formatDuration(message.durationMs),
+        hasConfirm:
+          message.role === "assistant" &&
+          !!message.confirm &&
+          !message.confirmResolved,
         widgets,
         hasWidgets: widgets.length > 0
       };
     });
+  }
+
+  formatDuration(durationMs) {
+    if (typeof durationMs !== "number") {
+      return "";
+    }
+    if (durationMs < 1000) {
+      return `${durationMs} ms`;
+    }
+    return `${(durationMs / 1000).toFixed(1)} s`;
   }
 
   get useCustomMarkdownRenderer() {
@@ -842,29 +905,36 @@ export default class AgentforceChat extends LightningElement {
       return;
     }
     const clientRequestId = this.generateId("client");
-    const skillResolution = this.resolveSkillMentions(text);
-    const userMessage = this.appendMessage("user", text, {
+    // Confirmation responses send a raw JSON payload but display a friendly label.
+    const isOverride = typeof options.sendOverride === "string";
+    const displayText = options.displayText || text;
+    const skillResolution = isOverride
+      ? { resolvedText: options.sendOverride, usedSkillLabels: [] }
+      : this.resolveSkillMentions(text);
+    const userMessage = this.appendMessage("user", displayText, {
       clientRequestId,
       resolvedContent:
-        skillResolution.usedSkillLabels.length > 0
+        isOverride || skillResolution.usedSkillLabels.length > 0
           ? skillResolution.resolvedText
           : null,
       usedSkillLabels: skillResolution.usedSkillLabels
     });
-    const messageWithContext = this.withAgentContext(
-      skillResolution.resolvedText
-    );
+    const messageWithContext = isOverride
+      ? options.sendOverride
+      : this.withAgentContext(skillResolution.resolvedText);
     this.dispatchMessageEvent(userMessage, "outgoing");
     this.draftMessage = "";
     this.state = STATE.SENDING;
 
     try {
       this.state = STATE.WAITING;
+      const startedAt = Date.now();
       const response = await sendAgentMessage({
         agentApiName: this.resolvedAgentApiName,
         message: messageWithContext,
         sessionId: this.currentSessionId
       });
+      const durationMs = Date.now() - startedAt;
       this.state = STATE.RECEIVING;
 
       if (response?.sessionId && response.sessionId !== this.currentSessionId) {
@@ -887,7 +957,12 @@ export default class AgentforceChat extends LightningElement {
           requestId: response?.requestId,
           citations: response?.citations || [],
           valueJson: response?.valueJson || null,
-          widgets: response?.widgets || []
+          widgets: response?.widgets || [],
+          durationMs,
+          confirm: this.parseConfirm(
+            response?.envelopeJson,
+            response?.valueJson
+          )
         }
       );
 
@@ -930,6 +1005,120 @@ export default class AgentforceChat extends LightningElement {
     if (options.focusInput !== false) {
       this.focusInput();
     }
+  }
+
+  // --- Confirmation (ConfirmMessage) handling ------------------------------
+
+  /**
+   * Detect a confirmation request in the agent envelope. The agent's confirm
+   * message can sit at the envelope root or nested (value / messages / result),
+   * so we search recursively for a node that carries a feedback id and/or a
+   * `confirm` array. Returns { feedbackId, text, options, raw } or null.
+   */
+  parseConfirm(envelopeJson, valueJson) {
+    const root =
+      this.parseAgentValue(envelopeJson) || this.parseAgentValue(valueJson);
+    if (!root) {
+      return null;
+    }
+    const node = this.findConfirmNode(root, 0);
+    if (!node) {
+      return null;
+    }
+    const feedbackId =
+      node.feedbackId ||
+      node.feedbackID ||
+      node.confirmId ||
+      node.id ||
+      root.feedbackId ||
+      root.feedbackID ||
+      null;
+    const optionsList = Array.isArray(node.confirm)
+      ? node.confirm
+      : Array.isArray(node.options)
+        ? node.options
+        : [];
+    return {
+      feedbackId,
+      text: node.message || node.text || node.messageText || "",
+      options: optionsList,
+      raw: node
+    };
+  }
+
+  findConfirmNode(value, depth) {
+    if (!value || typeof value !== "object" || depth > 6) {
+      return null;
+    }
+    const type = (value.type || value.messageType || "").toString();
+    const looksLikeConfirm =
+      /confirm/i.test(type) ||
+      (value.feedbackId != null && Array.isArray(value.confirm)) ||
+      Array.isArray(value.confirm);
+    if (looksLikeConfirm) {
+      return value;
+    }
+    const children = Array.isArray(value) ? value : Object.values(value);
+    for (const child of children) {
+      const found = this.findConfirmNode(child, depth + 1);
+      if (found) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Build the ConfirmResponseMessage payload echoed back to the agent. We clone
+   * the raw confirm node and stamp the user's decision on it plus the common
+   * decision fields, maximising the chance the platform accepts it.
+   *
+   * NOTE: exact field names vary by org/agent version — adjust here once the
+   * raw ConfirmMessage shape is confirmed from the logged envelope.
+   */
+  encodeConfirmResponse(confirm, accepted) {
+    const echoedOptions = (confirm.options || []).map((option) => {
+      if (option && typeof option === "object") {
+        return {
+          ...option,
+          result: accepted,
+          value: accepted,
+          isYes: accepted
+        };
+      }
+      return { value: option, result: accepted };
+    });
+    const payload = {
+      type: "ConfirmResponseMessage",
+      feedbackId: confirm.feedbackId,
+      isYes: accepted,
+      result: accepted,
+      confirm: echoedOptions
+    };
+    return JSON.stringify(payload);
+  }
+
+  handleConfirmDecision(event) {
+    const messageId = event.currentTarget.dataset.id;
+    const accepted = event.currentTarget.dataset.decision === "accept";
+    const message = this.messages.find((item) => item.id === messageId);
+    if (!message?.confirm) {
+      return;
+    }
+    const payload = this.encodeConfirmResponse(message.confirm, accepted);
+    // Hide the buttons on the answered confirmation.
+    this.messages = this.messages.map((item) => {
+      if (item.id !== messageId) {
+        return item;
+      }
+      return { ...item, confirmResolved: true };
+    });
+    this.persistActiveHistory();
+    this.hasInteracted = true;
+    this.handleSend(accepted ? "Accept" : "Decline", {
+      sendOverride: payload,
+      displayText: accepted ? "✓ Accepted" : "✗ Declined"
+    });
   }
 
   withAgentContext(text) {
@@ -1099,7 +1288,9 @@ export default class AgentforceChat extends LightningElement {
       return;
     }
     this.messages = normalized;
-    this.hasInteracted = this.messages.some((message) => message.role === "user");
+    this.hasInteracted = this.messages.some(
+      (message) => message.role === "user"
+    );
     this.restoreConversationSession();
   }
 
@@ -1315,7 +1506,10 @@ export default class AgentforceChat extends LightningElement {
     if (!storage) {
       return;
     }
-    storage.setItem(this.historyIndexStorageKey(), JSON.stringify(this.conversations));
+    storage.setItem(
+      this.historyIndexStorageKey(),
+      JSON.stringify(this.conversations)
+    );
   }
 
   readConversationIndex() {
@@ -1379,6 +1573,10 @@ export default class AgentforceChat extends LightningElement {
           ? message.usedSkillLabels
           : [],
         valueJson: message.valueJson || null,
+        durationMs:
+          typeof message.durationMs === "number" ? message.durationMs : null,
+        confirm: message.confirm || null,
+        confirmResolved: message.confirmResolved || false,
         widgets: this.normalizeWidgets(message.widgets, message.valueJson)
       }))
       .slice(-this.maxHistory);
@@ -1400,6 +1598,10 @@ export default class AgentforceChat extends LightningElement {
         ? extra.usedSkillLabels
         : [],
       valueJson: extra.valueJson || null,
+      durationMs:
+        typeof extra.durationMs === "number" ? extra.durationMs : null,
+      confirm: extra.confirm || null,
+      confirmResolved: extra.confirmResolved || false,
       widgets: this.normalizeWidgets(extra.widgets, extra.valueJson)
     };
     this.messages = [...this.messages, message].slice(-this.maxHistory);

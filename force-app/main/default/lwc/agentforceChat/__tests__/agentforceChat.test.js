@@ -46,6 +46,47 @@ describe("c-agentforce-chat", () => {
     window.localStorage.clear();
   });
 
+  it("renders seededMessages even when stale localStorage history exists", async () => {
+    // Simulate leftover history for this agent from a previous session.
+    window.localStorage.setItem(
+      "agentforce-chat-history:Support_Agent:index",
+      JSON.stringify([
+        {
+          id: "c1",
+          title: "Old",
+          updatedAt: "2020-01-01T00:00:00.000Z",
+          sessionId: null
+        }
+      ])
+    );
+    window.localStorage.setItem(
+      "agentforce-chat-history:Support_Agent:active",
+      "c1"
+    );
+    window.localStorage.setItem(
+      "agentforce-chat-history:Support_Agent:c1",
+      JSON.stringify([{ id: "u0", role: "user", content: "stale question" }])
+    );
+
+    const element = createComponent({
+      agentApiName: "Support_Agent",
+      seededMessages: [
+        { role: "user", content: "Seeded question" },
+        { role: "assistant", content: "Seeded answer" }
+      ]
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const values = [
+      ...element.shadowRoot.querySelectorAll("lightning-formatted-text")
+    ].map((el) => el.value);
+    expect(values).toContain("Seeded question");
+    expect(values).toContain("Seeded answer");
+    expect(values).not.toContain("stale question");
+  });
+
   it("sends a message and renders assistant response", async () => {
     sendAgentMessage.mockResolvedValue({
       message: {
@@ -111,6 +152,61 @@ describe("c-agentforce-chat", () => {
     expect(errorPayload).toBeDefined();
     expect(errorPayload.code).toBe("TIMEOUT");
     expect(errorPayload.retryable).toBe(true);
+  });
+
+  it("shows Accept/Decline for a ConfirmMessage and sends the encoded payload", async () => {
+    sendAgentMessage
+      .mockResolvedValueOnce({
+        message: {
+          id: "m-1",
+          role: "assistant",
+          content: "Proceed with the update?"
+        },
+        sessionId: "session-1",
+        envelopeJson: JSON.stringify({
+          feedbackId: "fb-123",
+          value: {
+            type: "ConfirmMessage",
+            message: "Proceed with the update?",
+            confirm: [{ id: "opt-1", label: "Proceed" }]
+          }
+        })
+      })
+      .mockResolvedValueOnce({
+        message: { id: "m-2", role: "assistant", content: "Done" },
+        sessionId: "session-1"
+      });
+
+    const element = createComponent({ agentApiName: "Support_Agent" });
+
+    element.sendMessage("Update the record");
+    await flushPromises();
+    await flushPromises();
+
+    const buttons = element.shadowRoot.querySelectorAll(
+      ".agentforce-chat__confirm lightning-button"
+    );
+    expect(buttons.length).toBe(2);
+
+    const accept = [...buttons].find((b) => b.dataset.decision === "accept");
+    accept.click();
+    await flushPromises();
+    await flushPromises();
+
+    // Second call carries the encoded ConfirmResponseMessage payload.
+    const secondCall = sendAgentMessage.mock.calls[1][0];
+    const payload = JSON.parse(secondCall.message);
+    expect(payload.type).toBe("ConfirmResponseMessage");
+    expect(payload.feedbackId).toBe("fb-123");
+    expect(payload.isYes).toBe(true);
+    expect(payload.confirm[0]).toMatchObject({ id: "opt-1", result: true });
+
+    // Buttons disappear once answered.
+    expect(
+      element.shadowRoot.querySelectorAll(
+        ".agentforce-chat__confirm lightning-button"
+      ).length
+    ).toBe(0);
   });
 
   it("hides suggestions after first interaction", async () => {
@@ -582,7 +678,8 @@ describe("c-agentforce-chat", () => {
       message: {
         id: "m-2",
         role: "assistant",
-        content: "Here is a structured summary of the Annie Dubois client account."
+        content:
+          "Here is a structured summary of the Annie Dubois client account."
       },
       sessionId: "session-1",
       requestId: "req-1",

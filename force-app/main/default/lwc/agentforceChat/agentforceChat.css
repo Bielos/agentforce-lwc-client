@@ -123,6 +123,8 @@
 }
 
 .agentforce-chat__bubble {
+  display: inline-block;
+  max-width: 90%;
   border-radius: 0.75rem;
   padding: 0.75rem;
   border: 1px solid var(--slds-g-color-border-base-1, #d8dde6);
@@ -134,6 +136,24 @@
   border-color: var(--slds-g-color-brand-base-70, #98b8f5);
 }
 
+/* User messages read as an outgoing bubble: avatar and content flip to the
+   right, and the bubble/meta hug that edge. */
+.agentforce-chat__message[data-role="user"] {
+  flex-direction: row-reverse;
+}
+
+.agentforce-chat__message[data-role="user"] .slds-media__figure {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
+.agentforce-chat__message[data-role="user"] .slds-media__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
 .agentforce-chat__meta {
   margin-top: 0.25rem;
   color: var(--slds-g-color-neutral-base-50, #6b6d70);
@@ -143,15 +163,60 @@
   gap: 0.25rem;
 }
 
+.agentforce-chat__duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  white-space: nowrap;
+}
+
+.agentforce-chat__confirm {
+  margin-top: 0.5rem;
+}
+
 .agentforce-chat__resolved-status {
   font-weight: 700;
   color: var(--slds-g-color-brand-base-50, #0b5cab);
   text-decoration: underline dotted;
 }
 
-.agentforce-chat__typing {
-  display: flex;
-  align-items: center;
+/* Animated "assistant is thinking" bubble (replaces the old spinner). */
+.agentforce-chat__typing-bubble {
+  padding: 0.625rem 0.875rem;
+}
+
+.agentforce-chat__typing-dots {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.agentforce-chat__typing-dots span {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--slds-g-color-neutral-base-50, #6b6d70);
+  animation: agentforce-typing 1.2s infinite ease-in-out;
+}
+
+.agentforce-chat__typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.agentforce-chat__typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes agentforce-typing {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-0.25rem);
+    opacity: 1;
+  }
 }
 
 .agentforce-chat__citations {

@@ -33,6 +33,8 @@ The second version performs better because it combines scoped expertise and busi
 - The goal is to make high-quality, governed agent interactions easy to deploy, reuse, and evolve.
 - Skills catalog: [Skills Index](./skills/index.md)
 - Prompting guide: [Skills Prompting README](./skills/prompting-readme.md)
+- Response pipeline: [How an Agentforce Response Is Transformed](./RESPONSE-TRANSFORMATION.md)
+- Importing data: [Importing Sample Conversations](./SAMPLE-CONVERSATION-IMPORT.md)
 
 You can also quickly deploy the unmanaged app from this repository to get a working baseline and start customizing immediately (see [One-command deploy (recommended)](#one-command-deploy-recommended)).
 
@@ -46,7 +48,8 @@ The UI is decoupled from direct REST calls. The component calls Apex, and Apex i
 - Dynamic agent selection UI backed by configured `BotDefinition` metadata.
 - Suggested prompts, retry, copy assistant message, and auto-scroll.
 - Session persistence for uncontrolled mode (`sessionStorage`).
-- Public API methods: `sendMessage`, `clearConversation`, `focusInput`, `setSession`, `addSystemMessage`.
+- Public API methods: `sendMessage`, `clearConversation`, `focusInput`, `setSession`, `addSystemMessage`, `replay`.
+- `seededMessages` property to pre-populate the chat with an existing transcript (array of `{ role, content }`) for display and replay.
 - Events: `message`, `response`, `error`, `sessionchange`, `voiceerror`.
 - Markdown rendering with renderer choice and richer formatting support.
 - Dedicated `c-voice-input` component for microphone capture with retry/error UX.
@@ -135,9 +138,13 @@ The current component implementation supports:
 - LWC bundle: `force-app/main/default/lwc/coworkerSkills`
 - LWC bundle: `force-app/main/default/lwc/markdownViewer`
 - LWC bundle: `force-app/main/default/lwc/voiceInput`
+- LWC bundle: `force-app/main/default/lwc/sampleConversationPlayer`
 - Apex service: `force-app/main/default/classes/AgentforceService.cls`
 - Skills controller: `force-app/main/default/classes/CoworkerSkillsController.cls`
+- Sample conversation controller: `force-app/main/default/classes/SampleConversationController.cls`
 - Skills metadata type: `Coworker_Skill__mdt`
+- Sample conversation object: `Sample_Conversation__c`
+- Permission set: `SampleConversationAccess`
 
 ## App Builder Configuration
 
@@ -196,6 +203,163 @@ If Apex skill loading is unavailable, the component can still parse optional `sk
 - `label`
 - `content__c`
 
+## Sample Conversations (rehearse & refine agent responses)
+
+Prompt engineering is iterative: you script an intended exchange, run it against a
+real agent, compare what the agent actually says to what you hoped it would say,
+and tighten the skill or prompt until the two converge. The **Sample Conversation**
+feature makes that loop a first-class, shareable artifact in the org.
+
+### The idea
+
+A `Sample_Conversation__c` record stores one scripted multi-turn exchange:
+
+- **Transcript** (`Transcript__c`, Long Text Area, 131,072 chars) — the whole
+  dialogue as plain text. Each turn is a block prefixed with `User:` or `Agent:`.
+  `Agent:` turns start as your _expected_ response and get rewritten in place with
+  the agent's _live_ response when you play the conversation.
+- **Skill API Name** (`Skill_API_Name__c`) — the `DeveloperName` of a
+  `Coworker_Skill__mdt` record. Its `Content__c` is prepended to the first user
+  turn when playing, so the conversation is rehearsed with the same reusable skill
+  the agent would use in production.
+- **Agent API Name** (`Agent_API_Name__c`) — the `BotDefinition` `DeveloperName`
+  the transcript is played against.
+- **Chatter feedback** — Chatter feeds are enabled on the object, so reviewers can
+  comment on a conversation (turn-by-turn observations, prompt suggestions,
+  sign-off) directly in the record feed without changing the transcript itself.
+
+Example transcript:
+
+```
+User: My order #1234 arrived damaged. What are my options?
+
+Agent: (expected) Acknowledge, apologize, offer replacement or refund, give ETA.
+
+User: I'd prefer a replacement.
+
+Agent: (expected) Confirm the replacement, restate the ETA, provide a tracking ref.
+```
+
+### The process (the loop)
+
+1. Create a `Sample_Conversation__c` record and write the scripted transcript using
+   `User:` / `Agent:` prefixes. Set **Skill API Name** and **Agent API Name**.
+2. Open the record — the **Sample Conversation Player** LWC
+   (`c-sample-conversation-player`) parses the transcript into turns. It opens in
+   one of two modes:
+   - **View mode** (default when a transcript exists) **reuses the
+     `c-agentforce-chat` component** for a proper chat display: the stored
+     transcript is fed to it via its `seededMessages` API so every `User:`/`Agent:`
+     turn renders as a chat bubble. Press **Play** and the player calls the chat's
+     `replay()` method, which re-sends the user turns through the agent using the
+     chat's own pipeline. Every message the chat exchanges is **captured back into
+     the transcript through the chat's `message` event callback**, so a replay
+     rebuilds the transcript (with per-turn response durations). Save persists it.
+   - **Edit mode** (toggle via the **Edit**/**View** button; default for an empty
+     record) shows the inline turn editor described below.
+3. Pick the agent in the player's **Agent** dropdown (populated from
+   `AgentforceService.getConfiguredAgents`; falls back to a free-text field if none
+   are returned). You can also build turns directly with **Add User turn** /
+   **Add Agent turn** and delete any turn — no need to hand-type prefixes.
+4. Click **Play**. For each `User:` turn the player calls
+   `AgentforceService.sendMessage` (seeding the first turn with the linked skill's
+   content) and rewrites the following `Agent:` turn with the live response. A
+   single session id is kept across turns so multi-turn context is preserved. Each
+   live turn is flagged with a "Live response" badge and a **response-duration
+   badge** (e.g. `1.8 s`) so you can spot slow turns.
+5. Compare expected vs. live, edit any turn inline, and discuss in Chatter.
+6. Click **Save transcript** to serialize the turns back to `Transcript__c` (the
+   chosen agent is persisted to `Agent_API_Name__c` at the same time). Refine the
+   underlying skill/prompt and replay until the agent matches intent.
+
+> Response durations are measured client-side and shown per turn (both in the
+> editor's duration badge and next to each agent bubble in the chat view). They are
+> **persisted in the transcript** as an annotation on the agent turn, e.g.
+> `Agent (1.8s): ...`, so they survive save/reload and are read back when the
+> conversation is displayed. Save also persists the selected agent.
+
+### How it fits together
+
+```
+Sample_Conversation__c ── Skill_API_Name__c ──▶ Coworker_Skill__mdt.Content__c
+        │                                                   │
+        │ Transcript__c (User:/Agent: turns)                │ seeds first user turn
+        ▼                                                   ▼
+c-sample-conversation-player ──▶ SampleConversationController ──▶ AgentforceService.sendMessage
+        ▲                                   │
+        └──────── rewrites Agent turns ◀────┘ (live response)
+```
+
+Backing Apex (`SampleConversationController`): `getConversation` loads the record,
+`getSkillContent` resolves the linked skill body, and `saveTranscript` persists edits
+(all in user mode). Access is granted by the `SampleConversationAccess` permission set.
+
+### What ships in this repo
+
+- `Sample_Conversation__c` object with `Transcript__c`, `Skill_API_Name__c`,
+  `Agent_API_Name__c`, `Description__c`, `Last_Play_Duration__c`, and Chatter feeds
+  enabled.
+- **All Sample Conversations** list view (columns: Name, Skill API Name,
+  Description, Agent API Name).
+- `c-sample-conversation-player` LWC (targets `lightning__RecordPage` for this
+  object). Composes `c-agentforce-chat` for the read/replay view and captures the
+  transcript back via its `message` event callback; a toggle switches to an inline
+  turn editor.
+- `SampleConversationController` Apex class + tests (100% class coverage).
+- `SampleConversationAccess` permission set (object CRUD, FLS, tab, Apex access).
+- `Sample_Conversation_Record_Page` record page — a Detail tab (the player + record
+  detail) and a **Chatter** tab for turn-by-turn review comments.
+- The **Sample Conversations** tab and the record page are wired into the
+  **Agent Skills** app (`Agent_Skills.app-meta.xml`).
+- `c-sample-conversation-batch-player` LWC — the top-level **Sample Conversations**
+  explorer: all conversations grouped by skill in an accordion, click any to open
+  its record, or select several and replay them against their agents (transcripts +
+  durations saved to each record). Surfaced as the **Sample Conversations** tab in
+  the Agent Skills app and as the **Play Sample Conversations** global quick action.
+- `c/sampleConversationTranscript` — a shared JS module with the parse/serialize
+  helpers, reused by both the single-record player and the batch player.
+
+### Browsing and playing many conversations at once
+
+`c-sample-conversation-batch-player` is the top-level explorer:
+
+- **Master–detail layout** — a two-pane split: the left pane is a
+  `lightning-tree-grid` with skills as parent rows and conversations as children
+  (Agent, user-turn count, status and duration columns; per-row actions Open /
+  Play & save / Open full record). Selecting a conversation opens it in the right
+  pane; on narrow screens the panes stack, and the list keeps its scroll/selection.
+- **Reuses `c-agentforce-chat`** — the right pane renders the selected conversation
+  with the same chat component used on the record page, seeded from already-loaded
+  data (keyed by selection so it remounts cleanly on switch). An **Open full record**
+  button navigates to the single-record player when needed.
+- **Play from the detail pane** — a **Play** button replays the open conversation
+  live in the chat (turns stream in — no blocking overlay), then saves the rebuilt
+  transcript back to the record along with the total response time in the
+  `Last_Play_Duration__c` field. The left-hand row's status and duration update too.
+  (Row-level **Play & save** does the same headlessly from the tree grid.)
+- **Batch play** — tick any number across skills and press **Play**; each is
+  replayed against its `Agent_API_Name__c` (seeded with its skill), and the rebuilt
+  transcript + per-conversation duration are saved back, with live per-row status.
+
+It ships surfaced two ways:
+
+- The **Sample Conversations** tab (`Sample_Conversations_Home` App Page) in the
+  **Agent Skills** app — the primary top-level entry point.
+- The **Play Sample Conversations** global quick action
+  (`Play_Sample_Conversations`, Lightning web component).
+
+> The global action must be added once to the **Global Publisher Layout** (Setup →
+> Global Actions → Publisher Layouts) to appear in the action bar; the tab works
+> without any extra setup.
+
+After deploying, assign the `SampleConversationAccess` permission set (it grants the
+field-level security the player needs), open the **Agent Skills** app, and use the
+**Sample Conversations** tab to create and play conversations.
+
+To seed conversations in bulk from a spreadsheet or another org using the standard
+Salesforce APIs (CLI, Bulk API 2.0, REST/Composite, Data Loader), see
+[Importing Sample Conversations](./SAMPLE-CONVERSATION-IMPORT.md).
+
 ## Current Agentforce Invocation Shape
 
 In `AgentforceService`, the invocable call uses:
@@ -253,8 +417,8 @@ sf apex run test --target-org "<org-username-or-alias>" --tests "AgentforceServi
 
 Install the unmanaged package directly in your org:
 
-- [Install Agentforce Chat package](https://login.salesforce.com/?ec=302&startURL=%2Fpackaging%2FinstallPackage.apexp%3Fp0%3D04tKB000000cdy3%26InstHostname%3Dlogin.salesforce.com)
-- [Install Agentforce Chat package (Sandbox)](https://test.salesforce.com/?ec=302&startURL=%2Fpackaging%2FinstallPackage.apexp%3Fp0%3D04tKB000000cdy3%26InstHostname%3Dtest.salesforce.com)
+- [Install Agentforce Chat package](https://login.salesforce.com/?ec=302&startURL=%2Fpackaging%2FinstallPackage.apexp%3Fp0%3D04tKB000000cdy8%26InstHostname%3Dlogin.salesforce.com)
+- [Install Agentforce Chat package (Sandbox)](https://test.salesforce.com/?ec=302&startURL=%2Fpackaging%2FinstallPackage.apexp%3Fp0%3D04tKB000000cdy8%26InstHostname%3Dtest.salesforce.com)
 
 After opening the link:
 

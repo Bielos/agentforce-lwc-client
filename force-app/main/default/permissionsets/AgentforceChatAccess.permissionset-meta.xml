@@ -4,6 +4,10 @@
         <apexClass>AgentforceService</apexClass>
         <enabled>true</enabled>
     </classAccesses>
+    <classAccesses>
+        <apexClass>CoworkerSkillsController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
     <description
   >Grants access to the Agentforce Classic Visualforce tab and backend Apex service.</description>
     <hasActivationRequired>false</hasActivationRequired>

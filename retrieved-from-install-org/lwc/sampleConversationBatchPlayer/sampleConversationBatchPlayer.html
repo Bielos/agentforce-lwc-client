@@ -1,0 +1,190 @@
+<template>
+  <lightning-card title="Sample Conversations" icon-name="standard:live_chat">
+    <lightning-button-icon
+      slot="actions"
+      icon-name="utility:upload"
+      alternative-text="Import JSON"
+      title="Import conversations from JSON"
+      disabled={actionsDisabled}
+      onclick={handleImportClick}
+    ></lightning-button-icon>
+    <lightning-button-icon
+      slot="actions"
+      icon-name="utility:refresh"
+      alternative-text="Reload"
+      title="Reload list"
+      disabled={actionsDisabled}
+      onclick={handleRefresh}
+    ></lightning-button-icon>
+
+    <lightning-input
+      class="slds-hide"
+      type="file"
+      variant="label-hidden"
+      label="Import conversations from JSON"
+      accept=".json,application/json"
+      data-id="import-file"
+      onchange={handleImportFile}
+    ></lightning-input>
+
+    <div class="slds-p-horizontal_small slds-p-bottom_small">
+      <template lwc:if={showSpinner}>
+        <lightning-spinner
+          alternative-text={spinnerLabel}
+          size="small"
+        ></lightning-spinner>
+      </template>
+
+      <template lwc:if={errorMessage}>
+        <div class="slds-text-color_error slds-p-vertical_x-small" role="alert">
+          {errorMessage}
+        </div>
+      </template>
+
+      <template lwc:if={hasRows}>
+        <div class="layout">
+          <!-- Left: skills as a vertical list -->
+          <aside class="layout__skills">
+            <p class="slds-text-title_caps slds-m-bottom_xx-small">Skills</p>
+            <ul class="skill-list" role="list" aria-label="Skills">
+              <template for:each={skillList} for:item="skill">
+                <li key={skill.value} role="listitem">
+                  <button
+                    type="button"
+                    class={skill.cardClass}
+                    data-skill={skill.value}
+                    aria-pressed={skill.isSelected}
+                    disabled={actionsDisabled}
+                    onclick={handleSelectSkill}
+                  >
+                    <span class="skill-card__name">{skill.name}</span>
+                    <span class="skill-card__count">{skill.count}</span>
+                  </button>
+                </li>
+              </template>
+            </ul>
+          </aside>
+
+          <!-- Right: conversations for the selected skill, then the player -->
+          <div class="layout__main">
+            <p class="slds-text-title_caps slds-m-bottom_xx-small">
+              Conversations
+            </p>
+            <ul
+              class="conv-list"
+              role="tablist"
+              aria-label="Conversations for the selected skill"
+            >
+              <template for:each={conversationList} for:item="item">
+                <li key={item.id} class={item.itemClass} role="presentation">
+                  <button
+                    type="button"
+                    role="tab"
+                    class="conv-list__button"
+                    data-id={item.id}
+                    aria-selected={item.isSelected}
+                    disabled={actionsDisabled}
+                    onclick={handleSelectConversation}
+                  >
+                    <span class="conv-list__name">{item.name}</span>
+                    <template lwc:if={item.metaLabel}>
+                      <span
+                        class="conv-list__meta slds-text-body_small slds-text-color_weak"
+                        >{item.metaLabel}</span
+                      >
+                    </template>
+                  </button>
+                </li>
+              </template>
+            </ul>
+
+            <!-- Selected conversation (keyed so it remounts on change) -->
+            <div class="conv-detail-wrap slds-m-top_small">
+            <template lwc:if={showDetail}>
+              <template for:each={detailItems} for:item="detail">
+                <div key={detail.key} class="conv-detail">
+                  <div class="conv-detail__head">
+                    <div class="conv-detail__title">
+                      <h2 class="slds-text-heading_small">{detail.name}</h2>
+                      <template lwc:if={detail.description}>
+                        <p class="slds-text-body_small slds-text-color_weak">
+                          {detail.description}
+                        </p>
+                      </template>
+                      <template lwc:if={detail.lastPlayedLabel}>
+                        <p
+                          class="slds-text-body_small slds-text-color_weak conv-detail__lastplayed"
+                        >
+                          <lightning-icon
+                            icon-name="utility:clock"
+                            size="xx-small"
+                            alternative-text="Last played"
+                          ></lightning-icon>
+                          {detail.lastPlayedLabel}
+                        </p>
+                      </template>
+                    </div>
+                    <div class="slds-button-group" role="group">
+                      <lightning-button
+                        data-id="detail-play"
+                        label="Replay"
+                        icon-name="utility:refresh"
+                        variant="brand"
+                        disabled={detailPlayDisabled}
+                        onclick={handlePlayDetail}
+                      ></lightning-button>
+                      <lightning-button
+                        label="Open"
+                        title="Open the conversation record"
+                        icon-name="utility:open"
+                        onclick={handleOpenRecord}
+                      ></lightning-button>
+                    </div>
+                  </div>
+
+                  <template lwc:if={isPlaying}>
+                    <div
+                      class="slds-p-bottom_x-small slds-text-body_small slds-text-color_weak"
+                      role="status"
+                    >
+                      Replaying live — responses stream in as the agent answers,
+                      then the transcript and duration are saved.
+                    </div>
+                  </template>
+                  <c-agentforce-chat
+                    agent-api-name={detail.agent}
+                    seeded-messages={detail.seedMessages}
+                    markdown-enabled
+                    show-avatar
+                    max-height="32rem"
+                    onmessage={handleDetailChatMessage}
+                  ></c-agentforce-chat>
+                </div>
+              </template>
+            </template>
+            <template lwc:else>
+              <div class="conv-detail conv-detail_empty slds-text-color_weak">
+                Pick a conversation above to open it here.
+              </div>
+            </template>
+            </div>
+          </div>
+        </div>
+
+        <p class="slds-text-body_small slds-text-color_weak slds-p-top_x-small">
+          Pick a skill on the left to list its sample conversations; the first
+          one opens automatically and shows the saved transcript. "Replay
+          against agent" runs it live and saves the fresh transcript and
+          duration back to the record.
+        </p>
+      </template>
+
+      <template lwc:if={showEmptyState}>
+        <p class="slds-text-color_weak">
+          No sample conversations found. Use Import JSON to load a
+          <code>records</code> file.
+        </p>
+      </template>
+    </div>
+  </lightning-card>
+</template>

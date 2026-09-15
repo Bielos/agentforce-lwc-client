@@ -3,11 +3,45 @@
     <types>
         <members>AgentforceService</members>
         <members>AgentforceServiceTest</members>
+        <members>CoworkerSkillsController</members>
+        <members>CoworkerSkillsControllerTest</members>
+        <members>SampleConversationController</members>
+        <members>SampleConversationControllerTest</members>
         <name>ApexClass</name>
     </types>
     <types>
+        <members>Coworker_Skill__mdt</members>
+        <members>Sample_Conversation__c</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>Sample_Conversation__c</members>
+        <members>Sample_Conversations_Home</members>
+        <name>CustomTab</name>
+    </types>
+    <types>
+        <members>Sample_Conversation_Record_Page</members>
+        <members>Sample_Conversations_Home</members>
+        <name>FlexiPage</name>
+    </types>
+    <types>
         <members>agentforceChat</members>
+        <members>agentWidgetCard</members>
+        <members>markdownViewer</members>
+        <members>sampleConversationBatchPlayer</members>
+        <members>sampleConversationPlayer</members>
+        <members>sampleConversationTranscript</members>
+        <members>voiceInput</members>
         <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>AgentforceChatAccess</members>
+        <members>SampleConversationAccess</members>
+        <name>PermissionSet</name>
+    </types>
+    <types>
+        <members>Play_Sample_Conversations</members>
+        <name>QuickAction</name>
     </types>
     <version>67.0</version>
 </Package>

@@ -1,0 +1,32 @@
+.turn {
+  padding: var(--slds-g-spacing-2, 0.5rem) 0;
+}
+
+.turn__header {
+  display: flex;
+  align-items: center;
+  gap: var(--slds-g-spacing-2, 0.5rem);
+  margin-bottom: var(--slds-g-spacing-1, 0.25rem);
+}
+
+.turn__role {
+  font-weight: 700;
+  color: var(--slds-g-color-neutral-base-30, #444);
+}
+
+.turn__delete {
+  margin-inline-start: auto;
+}
+
+.turn_user .turn__role {
+  color: var(--slds-g-color-accent-container-1, #0176d3);
+}
+
+.turn_agent .turn__role {
+  color: var(--slds-g-color-neutral-base-30, #444);
+}
+
+.turn_updated {
+  border-inline-start: 3px solid var(--slds-g-color-accent-container-1, #0176d3);
+  padding-inline-start: var(--slds-g-spacing-2, 0.5rem);
+}

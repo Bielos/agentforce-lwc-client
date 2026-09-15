@@ -8,6 +8,14 @@
         <type>Flexipage</type>
         <pageOrSobjectType>standard-home</pageOrSobjectType>
     </actionOverrides>
+    <actionOverrides>
+        <actionName>View</actionName>
+        <content>Sample_Conversation_Record_Page</content>
+        <formFactor>Large</formFactor>
+        <skipRecordTypeSelect>false</skipRecordTypeSelect>
+        <type>Flexipage</type>
+        <pageOrSobjectType>Sample_Conversation__c</pageOrSobjectType>
+    </actionOverrides>
     <brand>
         <headerColor>#0070D2</headerColor>
         <logo>sfelite</logo>
@@ -26,6 +34,8 @@
     <navType>Standard</navType>
     <tabs>Coworker_skills</tabs>
     <tabs>Ask_Agentforce</tabs>
+    <tabs>Sample_Conversations_Home</tabs>
+    <tabs>Sample_Conversation__c</tabs>
     <uiType>Lightning</uiType>
     <utilityBar>Agent_Skills_UtilityBar</utilityBar>
 </CustomApplication>

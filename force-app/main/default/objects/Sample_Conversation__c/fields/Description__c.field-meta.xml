@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Description__c</fullName>
+    <description
+  >Short summary of what this sample conversation exercises (scenario, intent, or the behavior being rehearsed).</description>
+    <inlineHelpText
+  >A one-line summary of the scenario this conversation rehearses.</inlineHelpText>
+    <label>Description</label>
+    <type>TextArea</type>
+    <required>false</required>
+</CustomField>

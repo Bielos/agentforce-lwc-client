@@ -65,6 +65,8 @@ public with sharing class AgentforceService {
     @AuraEnabled
     public String valueJson;
     @AuraEnabled
+    public String envelopeJson;
+    @AuraEnabled
     public List<WidgetPayload> widgets;
     @AuraEnabled
     public String errorCode;
@@ -97,6 +99,7 @@ public with sharing class AgentforceService {
     public String requestId;
     public List<Citation> citations;
     public String valueJson;
+    public String envelopeJson;
     public List<WidgetPayload> widgets;
   }
 
@@ -173,6 +176,14 @@ public with sharing class AgentforceService {
       InvocationResult normalized = new InvocationResult();
       normalized.responseText = parsed.responseText;
       normalized.valueJson = parsed.valueJson;
+      // Full raw envelope so the UI can read fields (e.g. a confirmation's
+      // feedbackId) that live outside agentResponse.value.
+      Object envelopeRaw = output.get('agentResponse');
+      normalized.envelopeJson = envelopeRaw == null
+        ? null
+        : (envelopeRaw instanceof String
+            ? (String) envelopeRaw
+            : JSON.serialize(envelopeRaw));
       normalized.widgets = parsed.widgets;
       normalized.sessionId = safeToString(output.get('sessionId'));
       normalized.requestId = safeToString(output.get('requestId'));
@@ -227,6 +238,7 @@ public with sharing class AgentforceService {
         ? new List<Citation>()
         : result.citations;
       response.valueJson = result.valueJson;
+      response.envelopeJson = result.envelopeJson;
       response.widgets = result.widgets == null
         ? new List<WidgetPayload>()
         : result.widgets;
@@ -498,7 +510,9 @@ public with sharing class AgentforceService {
    * @return Parsed text, serialized value payload, and citations.
    */
   @TestVisible
-  private static ParsedAgentOutput parseAgentOutput(Map<String, Object> output) {
+  private static ParsedAgentOutput parseAgentOutput(
+    Map<String, Object> output
+  ) {
     ParsedAgentOutput parsed = new ParsedAgentOutput();
     if (output == null) {
       return parsed;
@@ -536,7 +550,9 @@ public with sharing class AgentforceService {
    * @return Widget payloads keyed by their dynamic output names.
    */
   @TestVisible
-  private static List<WidgetPayload> extractWidgets(Map<String, Object> valueMap) {
+  private static List<WidgetPayload> extractWidgets(
+    Map<String, Object> valueMap
+  ) {
     List<WidgetPayload> widgets = new List<WidgetPayload>();
     if (valueMap == null || !(valueMap.get('result') instanceof List<Object>)) {
       return widgets;

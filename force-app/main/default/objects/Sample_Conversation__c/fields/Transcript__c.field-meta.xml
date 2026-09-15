@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Transcript__c</fullName>
+    <description
+  >Full multi-turn transcript. Each turn is a block prefixed with "User:" or "Agent:". The Sample Conversation Player parses this text into turns and rewrites Agent turns with the agent's live response.</description>
+    <label>Transcript</label>
+    <type>LongTextArea</type>
+    <length>131072</length>
+    <visibleLines>25</visibleLines>
+</CustomField>

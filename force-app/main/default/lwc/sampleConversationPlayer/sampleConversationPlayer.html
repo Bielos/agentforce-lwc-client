@@ -1,0 +1,223 @@
+<template>
+  <lightning-card
+    title="Sample Conversation Player"
+    icon-name="standard:live_chat"
+  >
+    <div slot="actions" class="slds-button-group">
+      <lightning-button
+        data-id="toggle-edit"
+        label={editToggleLabel}
+        icon-name={editToggleIcon}
+        disabled={isPlaying}
+        onclick={handleToggleEdit}
+      ></lightning-button>
+      <template lwc:if={showEditor}>
+        <lightning-button
+          data-id="play"
+          label="Play"
+          icon-name="utility:play"
+          variant="brand"
+          disabled={playDisabled}
+          onclick={handlePlay}
+        ></lightning-button>
+      </template>
+      <template lwc:if={showChat}>
+        <lightning-button
+          data-id="chat-play"
+          label="Play"
+          icon-name="utility:play"
+          variant="brand"
+          disabled={chatPlayDisabled}
+          onclick={handleChatReplay}
+        ></lightning-button>
+      </template>
+      <lightning-button
+        data-id="save"
+        label="Save transcript"
+        icon-name="utility:save"
+        disabled={saveDisabled}
+        onclick={handleSave}
+      ></lightning-button>
+      <lightning-button-icon
+        icon-name="utility:refresh"
+        alternative-text="Reload"
+        title="Reload from record"
+        disabled={isPlaying}
+        onclick={handleReload}
+      ></lightning-button-icon>
+    </div>
+
+    <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+      <template lwc:if={subtitle}>
+        <p
+          class="slds-text-body_small slds-text-color_weak slds-p-bottom_x-small"
+        >
+          {subtitle}
+        </p>
+      </template>
+
+      <div class="slds-p-bottom_x-small">
+        <template lwc:if={hasAgentOptions}>
+          <lightning-combobox
+            label="Agent"
+            value={agentApiName}
+            placeholder="Select an agent"
+            options={agentComboOptions}
+            disabled={isPlaying}
+            onchange={handleAgentChange}
+          ></lightning-combobox>
+        </template>
+        <template lwc:else>
+          <lightning-input
+            type="text"
+            label="Agent API Name"
+            value={agentApiName}
+            placeholder="e.g. SearchAgent"
+            disabled={isPlaying}
+            onchange={handleAgentChange}
+          ></lightning-input>
+        </template>
+      </div>
+
+      <template lwc:if={isLoading}>
+        <lightning-spinner
+          alternative-text="Loading conversation"
+          size="small"
+        ></lightning-spinner>
+      </template>
+
+      <template lwc:if={errorMessage}>
+        <div class="slds-text-color_error slds-p-vertical_x-small" role="alert">
+          {errorMessage}
+        </div>
+      </template>
+
+      <template lwc:if={showChat}>
+        <c-agentforce-chat
+          agent-api-name={agentApiName}
+          seeded-messages={chatSeedMessages}
+          sample-prompts={samplePromptsSeed}
+          markdown-enabled
+          show-avatar
+          max-height="32rem"
+          welcome-message="Press Play to replay this conversation against the agent, or type your own message. Responses are captured back into the transcript."
+          onmessage={handleChatMessage}
+        ></c-agentforce-chat>
+      </template>
+
+      <template lwc:if={showEditor}>
+        <template lwc:if={missingAgent}>
+          <div
+            class="slds-text-color_weak slds-p-vertical_x-small"
+            role="status"
+          >
+            Choose an agent above to enable Play.
+          </div>
+        </template>
+
+        <template lwc:if={isPlaying}>
+          <div class="slds-p-vertical_x-small">
+            <lightning-spinner
+              alternative-text="Playing conversation"
+              size="x-small"
+              variant="brand"
+            ></lightning-spinner>
+            <span class="slds-p-left_small slds-text-body_small"
+              >Playing against the agent…</span
+            >
+          </div>
+        </template>
+
+        <template lwc:if={hasTurns}>
+          <ul class="slds-has-dividers_bottom-space">
+            <template for:each={displayTurns} for:item="turn">
+              <li key={turn.id} class={turn.cssClass}>
+                <div class="turn__header">
+                  <span class="turn__role">{turn.roleLabel}</span>
+                  <template lwc:if={turn.updated}>
+                    <lightning-badge label="Live response"></lightning-badge>
+                  </template>
+                  <template lwc:if={turn.hasDuration}>
+                    <lightning-badge
+                      class="turn__duration"
+                      icon-name="utility:clock"
+                      label={turn.durationLabel}
+                    ></lightning-badge>
+                  </template>
+                  <lightning-button-icon
+                    class="turn__delete"
+                    data-id={turn.id}
+                    icon-name="utility:delete"
+                    variant="bare"
+                    size="small"
+                    alternative-text="Delete turn"
+                    title="Delete turn"
+                    disabled={isPlaying}
+                    onclick={handleDeleteTurn}
+                  ></lightning-button-icon>
+                </div>
+                <lightning-textarea
+                  data-id={turn.id}
+                  label={turn.roleLabel}
+                  variant="label-hidden"
+                  value={turn.content}
+                  onchange={handleTurnEdit}
+                  disabled={isPlaying}
+                ></lightning-textarea>
+              </li>
+            </template>
+          </ul>
+
+          <div class="slds-button-group slds-p-top_x-small" role="group">
+            <lightning-button
+              label="Add User turn"
+              icon-name="utility:add"
+              disabled={isPlaying}
+              onclick={handleAddUserTurn}
+            ></lightning-button>
+            <lightning-button
+              label="Add Agent turn"
+              icon-name="utility:add"
+              disabled={isPlaying}
+              onclick={handleAddAgentTurn}
+            ></lightning-button>
+          </div>
+        </template>
+
+        <template lwc:if={hasTurns}>
+          <p
+            class="slds-text-body_small slds-text-color_weak slds-p-top_x-small"
+          >
+            Playing sends each User turn to the agent and rewrites the following
+            Agent turn with the live response. Edit any turn, then Save
+            transcript to persist changes back to the record.
+          </p>
+        </template>
+
+        <template lwc:if={showEmptyState}>
+          <p class="slds-text-color_weak slds-p-bottom_x-small">
+            No turns yet. Add turns below to build the conversation, or type a
+            transcript into the record's Transcript field (using "User:" and
+            "Agent:" prefixes) and reload. Remember to Save transcript when
+            done.
+          </p>
+          <div class="slds-button-group" role="group">
+            <lightning-button
+              data-id="add-user-empty"
+              label="Add User turn"
+              icon-name="utility:add"
+              variant="brand"
+              onclick={handleAddUserTurn}
+            ></lightning-button>
+            <lightning-button
+              data-id="add-agent-empty"
+              label="Add Agent turn"
+              icon-name="utility:add"
+              onclick={handleAddAgentTurn}
+            ></lightning-button>
+          </div>
+        </template>
+      </template>
+    </div>
+  </lightning-card>
+</template>

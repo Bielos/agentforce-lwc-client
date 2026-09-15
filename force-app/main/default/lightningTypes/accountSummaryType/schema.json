@@ -1,0 +1,5 @@
+{
+  "title": "Account Summary Type",
+  "description": "Structured account summary payload mapped to accountSummaryWidgetExample.",
+  "lightning:type": "@apexClassType/c__AccountSummaryAction$AccountSummaryResult"
+}

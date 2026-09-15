@@ -244,6 +244,17 @@
                   minute="2-digit"
                 ></lightning-formatted-date-time>
 
+                <template lwc:if={message.hasDuration}>
+                  <span class="agentforce-chat__duration" title="Response time">
+                    <lightning-icon
+                      icon-name="utility:clock"
+                      size="xx-small"
+                      alternative-text="Response time"
+                    ></lightning-icon>
+                    {message.durationLabel}
+                  </span>
+                </template>
+
                 <template lwc:if={message.isAssistant}>
                   <lightning-button-icon
                     icon-name="utility:copy"
@@ -283,19 +294,56 @@
                   </template>
                 </ol>
               </template>
+
+              <template lwc:if={message.hasConfirm}>
+                <div
+                  class="agentforce-chat__confirm slds-button-group"
+                  role="group"
+                >
+                  <lightning-button
+                    label="Accept"
+                    variant="brand"
+                    icon-name="utility:check"
+                    data-id={message.id}
+                    data-decision="accept"
+                    onclick={handleConfirmDecision}
+                  ></lightning-button>
+                  <lightning-button
+                    label="Decline"
+                    variant="destructive"
+                    icon-name="utility:close"
+                    data-id={message.id}
+                    data-decision="decline"
+                    onclick={handleConfirmDecision}
+                  ></lightning-button>
+                </div>
+              </template>
             </div>
           </article>
         </template>
       </template>
 
       <template lwc:if={isWaiting}>
-        <div class="agentforce-chat__typing slds-p-vertical_small">
-          <lightning-spinner
-            alternative-text="Assistant is thinking"
-            size="small"
-          ></lightning-spinner>
-          <span class="slds-m-left_small">Assistant is thinking...</span>
-        </div>
+        <article
+          class="agentforce-chat__message agentforce-chat__message_typing slds-media"
+          data-role="assistant"
+        >
+          <template lwc:if={showAvatar}>
+            <div class="slds-media__figure">
+              <span class="agentforce-chat__avatar" title="assistant">🤖</span>
+            </div>
+          </template>
+          <div class="slds-media__body">
+            <div class="agentforce-chat__bubble agentforce-chat__typing-bubble">
+              <span
+                class="agentforce-chat__typing-dots"
+                aria-label="Assistant is thinking"
+              >
+                <span></span><span></span><span></span>
+              </span>
+            </div>
+          </div>
+        </article>
       </template>
     </div>
 

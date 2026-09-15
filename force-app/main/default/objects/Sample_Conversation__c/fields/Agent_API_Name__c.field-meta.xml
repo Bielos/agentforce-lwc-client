@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Agent_API_Name__c</fullName>
+    <description
+  >API name (BotDefinition DeveloperName) of the Agentforce agent used to play this conversation.</description>
+    <label>Agent API Name</label>
+    <type>Text</type>
+    <length>255</length>
+    <required>false</required>
+</CustomField>
