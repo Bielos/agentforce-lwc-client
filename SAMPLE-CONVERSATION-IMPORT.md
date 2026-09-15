@@ -193,6 +193,12 @@ curl -s -X POST "${INSTANCE_URL}/services/data/v67.0/composite/sobjects" \
 
 ## Option D — Point-and-click (no code)
 
+- **In-app paste (Sample Conversations tab)** — open the **Agent Skills** app →
+  **Sample Conversations** tab and click **Import JSON** in the toolbar. Paste a
+  JSON payload (either a tree with a `records` array or a bare array of records
+  using the fields above) and click **Import**; the batch player creates the
+  records and refreshes the list. Encode turn breaks in `Transcript__c` as `\n`,
+  same as the JSON transport rules above.
 - **Data Import Wizard** (Setup → Data Import Wizard → _Custom objects_ →
   _Sample Conversations_) — map the CSV columns to the fields above. Fine for
   modest volumes; use `\n` in `Transcript__c` so each record is one CSV row.

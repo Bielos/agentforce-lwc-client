@@ -271,16 +271,14 @@ describe("c-sample-conversation-batch-player", () => {
       ...element.shadowRoot.querySelectorAll("lightning-button-icon")
     ];
     expect(actions.map((button) => button.iconName)).toEqual([
-      "utility:upload",
+      "utility:paste",
       "utility:download",
       "utility:refresh"
     ]);
     expect(
-      element.shadowRoot.querySelector('[data-id="import-file"]')
-    ).not.toBeNull();
-    expect(
       element.shadowRoot.querySelector('[data-id="download-file"]')
     ).not.toBeNull();
+    expect(element.shadowRoot.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it("imports conversations from a sample-data JSON tree via Apex", async () => {
@@ -367,9 +365,117 @@ describe("c-sample-conversation-batch-player", () => {
     expect(importConversations).not.toHaveBeenCalled();
     expect(toasts[0]).toMatchObject({
       title: "Import failed",
-      message: "The file is not valid JSON.",
+      message: "The pasted text is not valid JSON.",
       variant: "error"
     });
+  });
+
+  it("opens a paste modal and imports JSON from the textarea", async () => {
+    getConversations.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        Id: "a01new",
+        Name: "Plan Monday",
+        Skill_API_Name__c: "plan_my_day",
+        Agent_API_Name__c: "SearchAgent",
+        Transcript__c: "User: Hi"
+      }
+    ]);
+
+    const element = createComponent();
+    await flushPromises();
+    await flushPromises();
+
+    const toasts = [];
+    element.addEventListener("lightning__showtoast", (event) => {
+      toasts.push(event.detail);
+    });
+
+    element.shadowRoot
+      .querySelector("lightning-button-icon[data-id='import-json']")
+      .click();
+    await flushPromises();
+
+    const dialog = element.shadowRoot.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+
+    const textarea = element.shadowRoot.querySelector(
+      '[data-id="import-json-text"]'
+    );
+    textarea.dispatchEvent(
+      new CustomEvent("change", {
+        detail: {
+          value: JSON.stringify({
+            records: [
+              {
+                attributes: {
+                  type: "Sample_Conversation__c",
+                  referenceId: "SC_1"
+                },
+                Name: "Plan Monday",
+                Skill_API_Name__c: "plan_my_day",
+                Agent_API_Name__c: "SearchAgent",
+                Transcript__c: "User: Hi"
+              }
+            ]
+          })
+        }
+      })
+    );
+    await flushPromises();
+
+    element.shadowRoot
+      .querySelector("lightning-button[data-id='import-json-submit']")
+      .click();
+    for (let i = 0; i < 10; i++) {
+      // eslint-disable-next-line no-await-in-loop
+      await flushPromises();
+    }
+
+    expect(importConversations).toHaveBeenCalledTimes(1);
+    expect(toasts[0]).toMatchObject({
+      title: "Import complete",
+      variant: "success"
+    });
+    expect(element.shadowRoot.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("keeps the modal open and shows an error for invalid pasted JSON", async () => {
+    getConversations.mockResolvedValue([]);
+
+    const element = createComponent();
+    await flushPromises();
+    await flushPromises();
+
+    const toasts = [];
+    element.addEventListener("lightning__showtoast", (event) => {
+      toasts.push(event.detail);
+    });
+
+    element.shadowRoot
+      .querySelector("lightning-button-icon[data-id='import-json']")
+      .click();
+    await flushPromises();
+
+    element.shadowRoot
+      .querySelector('[data-id="import-json-text"]')
+      .dispatchEvent(
+        new CustomEvent("change", { detail: { value: "{not json" } })
+      );
+    await flushPromises();
+
+    element.shadowRoot
+      .querySelector("lightning-button[data-id='import-json-submit']")
+      .click();
+    await flushPromises();
+    await flushPromises();
+
+    expect(importConversations).not.toHaveBeenCalled();
+    expect(toasts).toHaveLength(0);
+    expect(element.shadowRoot.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(
+      element.shadowRoot.querySelector('[role="dialog"] [role="alert"]')
+        .textContent
+    ).toBe("The pasted text is not valid JSON.");
   });
 
   it("exports loaded conversations as a sample-data JSON tree", async () => {

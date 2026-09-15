@@ -153,3 +153,7 @@
 .conv-detail__title {
   min-width: 0;
 }
+
+.import-json-field {
+  --slds-c-textarea-sizing-min-height: 16rem;
+}

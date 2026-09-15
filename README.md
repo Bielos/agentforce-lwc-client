@@ -340,6 +340,11 @@ Backing Apex (`SampleConversationController`): `getConversation` loads the recor
 - **Batch play** — tick any number across skills and press **Play**; each is
   replayed against its `Agent_API_Name__c` (seeded with its skill), and the rebuilt
   transcript + per-conversation duration are saved back, with live per-row status.
+- **Import JSON (paste, no code)** — the **Import JSON** toolbar action opens a
+  modal where you paste a sample-data JSON payload (either a tree with a
+  `records` array or a bare array of records) to create `Sample_Conversation__c`
+  records in-app, then refreshes the list. It's the point-and-click counterpart to
+  the API-based options in [Importing Sample Conversations](./SAMPLE-CONVERSATION-IMPORT.md).
 
 It ships surfaced two ways:
 
@@ -417,8 +422,8 @@ sf apex run test --target-org "<org-username-or-alias>" --tests "AgentforceServi
 
 Install the unmanaged package directly in your org:
 
-- [Install Agentforce Chat package](https://login.salesforce.com/?ec=302&startURL=%2Fpackaging%2FinstallPackage.apexp%3Fp0%3D04tKB000000cdy8%26InstHostname%3Dlogin.salesforce.com)
-- [Install Agentforce Chat package (Sandbox)](https://test.salesforce.com/?ec=302&startURL=%2Fpackaging%2FinstallPackage.apexp%3Fp0%3D04tKB000000cdy8%26InstHostname%3Dtest.salesforce.com)
+- [Install Agentforce Chat package](https://login.salesforce.com/?ec=302&startURL=%2Fpackaging%2FinstallPackage.apexp%3Fp0%3D04tQy000000ZRBp%26InstHostname%3Dlogin.salesforce.com)
+- [Install Agentforce Chat package (Sandbox)](https://test.salesforce.com/?ec=302&startURL=%2Fpackaging%2FinstallPackage.apexp%3Fp0%3D04tQy000000ZRBp%26InstHostname%3Dtest.salesforce.com)
 
 After opening the link:
 

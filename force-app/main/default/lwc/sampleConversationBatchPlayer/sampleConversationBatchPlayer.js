@@ -86,15 +86,25 @@ export default class SampleConversationBatchPlayer extends NavigationMixin(
   selectedId = null;
   isLoading = false;
   isImporting = false;
+  isImportModalOpen = false;
   isPlaying = false;
   errorMessage = "";
+  importJsonDraft = "";
+  importModalError = "";
 
   _records = new Map();
   _detailCaptured = [];
   _detailLastUserAt = null;
+  _focusImportTextarea = false;
 
   connectedCallback() {
+    this._boundImportEscape = this.handleImportModalKeydown.bind(this);
+    window.addEventListener("keydown", this._boundImportEscape);
     this.loadConversations();
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener("keydown", this._boundImportEscape);
   }
 
   async loadConversations() {
@@ -192,6 +202,14 @@ export default class SampleConversationBatchPlayer extends NavigationMixin(
     return this.isImporting
       ? "Importing conversations"
       : "Loading conversations";
+  }
+
+  get importSubmitDisabled() {
+    return this.isImporting || !this.importJsonDraft.trim();
+  }
+
+  get importPlaceholder() {
+    return '{"records":[{"Name":"Example conversation"}]}';
   }
 
   // Pick the first skill, then open its first conversation.
@@ -411,7 +429,61 @@ export default class SampleConversationBatchPlayer extends NavigationMixin(
     if (this.actionsDisabled) {
       return;
     }
-    this.template.querySelector('[data-id="import-file"]')?.click();
+    this.importJsonDraft = "";
+    this.importModalError = "";
+    this.isImportModalOpen = true;
+    this._focusImportTextarea = true;
+  }
+
+  handleImportJsonChange(event) {
+    this.importJsonDraft = event.detail?.value ?? "";
+    this.importModalError = "";
+  }
+
+  handleImportModalKeydown(event) {
+    if (
+      event.key !== "Escape" ||
+      !this.isImportModalOpen ||
+      this.isImporting
+    ) {
+      return;
+    }
+    event.stopPropagation();
+    this.closeImportModal();
+  }
+
+  handleImportModalCancel() {
+    if (this.isImporting) {
+      return;
+    }
+    this.closeImportModal();
+  }
+
+  async handleImportModalSubmit() {
+    const textarea = this.template.querySelector('[data-id="import-json-text"]');
+    const fieldValue =
+      typeof textarea?.value === "string" ? textarea.value.trim() : "";
+    const text = fieldValue || this.importJsonDraft.trim();
+    if (!text || this.isImporting) {
+      return;
+    }
+    this.importJsonDraft = text;
+    await this.importJsonText(text);
+  }
+
+  closeImportModal() {
+    this.isImportModalOpen = false;
+    this.importJsonDraft = "";
+    this.importModalError = "";
+    this._focusImportTextarea = false;
+  }
+
+  renderedCallback() {
+    if (!this._focusImportTextarea || !this.isImportModalOpen) {
+      return;
+    }
+    this._focusImportTextarea = false;
+    this.template.querySelector('[data-id="import-json-text"]')?.focus();
   }
 
   handleDownloadClick() {
@@ -453,65 +525,51 @@ export default class SampleConversationBatchPlayer extends NavigationMixin(
     return buildExportTree([...this._records.values()]);
   }
 
-  async handleImportFile(event) {
-    const input = event.target;
-    const files = event.detail?.files || input.files;
-    const file = files?.[0];
-    if (!file || this.actionsDisabled) {
-      this.resetFileInput(input);
-      return;
-    }
-    try {
-      await this.importJsonText(await this.readFileText(file));
-    } finally {
-      this.resetFileInput(input);
-    }
-  }
-
   /**
    * Parse a sample-data JSON tree (or record array) and create conversations.
    *
-   * @param {string} text Raw JSON file contents.
+   * @param {string} text Raw JSON contents.
    */
   @api
   async importJsonText(text) {
-    if (this.actionsDisabled) {
+    if (this.isPlaying || this.isLoading || this.isImporting) {
       return;
     }
     this.isImporting = true;
     this.errorMessage = "";
+    this.importModalError = "";
     try {
       const inputs = parseImportJson(text);
       if (inputs.length === 0) {
-        this.toast(
-          "Import failed",
-          "No sample conversations found in that file.",
-          "error"
-        );
+        this.failImport("No sample conversations found in that JSON.");
         return;
       }
       const { created, failures } = await this.createConversations(inputs);
       if (created > 0) {
+        this.closeImportModal();
         await this.loadConversations();
       }
       this.toastImportResult(created, inputs.length, failures);
+      if (created === 0 && this.isImportModalOpen) {
+        this.importModalError = failures[0] || "No records were created.";
+      }
     } catch (error) {
       const message =
         error instanceof SyntaxError
-          ? "The file is not valid JSON."
+          ? "The pasted text is not valid JSON."
           : this.readError(error);
-      this.toast("Import failed", message, "error");
+      this.failImport(message);
     } finally {
       this.isImporting = false;
     }
   }
 
-  resetFileInput(input) {
-    try {
-      input.value = "";
-    } catch {
-      // File inputs only accept an empty string; jsdom may reject the write.
+  failImport(message) {
+    if (this.isImportModalOpen) {
+      this.importModalError = message;
+      return;
     }
+    this.toast("Import failed", message, "error");
   }
 
   async createConversations(inputs) {
@@ -524,11 +582,13 @@ export default class SampleConversationBatchPlayer extends NavigationMixin(
 
   toastImportResult(created, total, failures) {
     if (created === 0) {
-      this.toast(
-        "Import failed",
-        failures[0] || "No records were created.",
-        "error"
-      );
+      if (!this.isImportModalOpen) {
+        this.toast(
+          "Import failed",
+          failures[0] || "No records were created.",
+          "error"
+        );
+      }
       return;
     }
     if (failures.length) {
@@ -544,18 +604,6 @@ export default class SampleConversationBatchPlayer extends NavigationMixin(
       `Created ${created} conversation${created === 1 ? "" : "s"}.`,
       "success"
     );
-  }
-
-  async readFileText(file) {
-    if (typeof file.text === "function") {
-      return file.text();
-    }
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsText(file);
-    });
   }
 
   patchConversation(id, patch) {
