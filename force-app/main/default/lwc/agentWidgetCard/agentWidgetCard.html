@@ -1,0 +1,32 @@
+<template>
+  <section class="agent-widget slds-box slds-theme_default">
+    <header class="agent-widget__header" if:true={title}>
+      <h3 class="slds-text-heading_small">{title}</h3>
+    </header>
+    <template for:each={nodes} for:item="node">
+      <div key={node.key} class={node.className}>
+        <template lwc:if={node.isSection}>
+          <h4 class="slds-text-title_caps">{node.label}</h4>
+        </template>
+        <template lwc:elseif={node.isField}>
+          <p class="agent-widget__label">{node.label}</p>
+          <p class="agent-widget__value">{node.value}</p>
+        </template>
+        <template lwc:elseif={node.isLink}>
+          <p class="agent-widget__label">{node.label}</p>
+          <a href={node.href} target="_blank" rel="noopener noreferrer"
+            >{node.href}</a
+          >
+        </template>
+        <template lwc:elseif={node.isAction}>
+          <lightning-button
+            label={node.label}
+            data-index={node.actionIndexLabel}
+            onclick={handleAction}
+            variant="neutral"
+          ></lightning-button>
+        </template>
+      </div>
+    </template>
+  </section>
+</template>

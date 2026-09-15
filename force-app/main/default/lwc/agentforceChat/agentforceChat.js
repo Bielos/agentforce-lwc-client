@@ -519,37 +519,47 @@ export default class AgentforceChat extends LightningElement {
   }
 
   get normalizedMessages() {
-    return this.messages.map((message, index) => ({
-      ...message,
-      renderKey: `${index}:${message.id}`,
-      isUser: message.role === "user",
-      isAssistant: message.role === "assistant",
-      isSystem: message.role === "system",
-      hasSkillMentions:
-        message.role === "user" &&
-        Array.isArray(message.usedSkillLabels) &&
-        message.usedSkillLabels.length > 0,
-      useLinkifyText:
-        !this.markdownEnabled &&
-        !(
+    return this.messages.map((message, index) => {
+      const widgets = this.normalizeWidgets(
+        message.widgets,
+        message.valueJson
+      );
+      return {
+        ...message,
+        renderKey: `${index}:${message.id}`,
+        isUser: message.role === "user",
+        isAssistant: message.role === "assistant",
+        isSystem: message.role === "system",
+        hasSkillMentions:
           message.role === "user" &&
           Array.isArray(message.usedSkillLabels) &&
-          message.usedSkillLabels.length > 0
-        ),
-      renderedContent: this.markdownEnabled
-        ? this.renderMarkdown(message.content)
-        : this.renderUserSkillMentions(
-            message.content,
-            message.usedSkillLabels
+          message.usedSkillLabels.length > 0,
+        useLinkifyText:
+          !this.markdownEnabled &&
+          !(
+            message.role === "user" &&
+            Array.isArray(message.usedSkillLabels) &&
+            message.usedSkillLabels.length > 0
           ),
-      hasResolvedContent:
-        message.role === "user" &&
-        !!message.resolvedContent &&
-        message.resolvedContent !== message.content &&
-        message.resolvedContent.length > 0,
-      hasCitations:
-        this.showCitations && message.citations && message.citations.length > 0
-    }));
+        renderedContent: this.markdownEnabled
+          ? this.renderMarkdown(message.content)
+          : this.renderUserSkillMentions(
+              message.content,
+              message.usedSkillLabels
+            ),
+        hasResolvedContent:
+          message.role === "user" &&
+          !!message.resolvedContent &&
+          message.resolvedContent !== message.content &&
+          message.resolvedContent.length > 0,
+        hasCitations:
+          this.showCitations &&
+          message.citations &&
+          message.citations.length > 0,
+        widgets,
+        hasWidgets: widgets.length > 0
+      };
+    });
   }
 
   get useCustomMarkdownRenderer() {
@@ -792,6 +802,14 @@ export default class AgentforceChat extends LightningElement {
     this.restoreConversationSession();
   }
 
+  handleWidgetAction(event) {
+    const prompt = event.detail?.prompt;
+    if (!prompt) {
+      return;
+    }
+    this.sendMessage(prompt);
+  }
+
   handleCopyMessage(event) {
     const messageId = event.currentTarget.dataset.id;
     const message = this.messages.find((item) => item.id === messageId);
@@ -867,7 +885,9 @@ export default class AgentforceChat extends LightningElement {
         {
           id: response?.message?.id,
           requestId: response?.requestId,
-          citations: response?.citations || []
+          citations: response?.citations || [],
+          valueJson: response?.valueJson || null,
+          widgets: response?.widgets || []
         }
       );
 
@@ -878,7 +898,9 @@ export default class AgentforceChat extends LightningElement {
             message: assistantMessage,
             sessionId: response?.sessionId || this.currentSessionId,
             requestId: response?.requestId,
-            citations: response?.citations || []
+            citations: response?.citations || [],
+            valueJson: response?.valueJson || null,
+            widgets: response?.widgets || []
           }
         })
       );
@@ -1355,7 +1377,9 @@ export default class AgentforceChat extends LightningElement {
         resolvedContent: message.resolvedContent || null,
         usedSkillLabels: Array.isArray(message.usedSkillLabels)
           ? message.usedSkillLabels
-          : []
+          : [],
+        valueJson: message.valueJson || null,
+        widgets: this.normalizeWidgets(message.widgets, message.valueJson)
       }))
       .slice(-this.maxHistory);
   }
@@ -1374,7 +1398,9 @@ export default class AgentforceChat extends LightningElement {
       resolvedContent: extra.resolvedContent || null,
       usedSkillLabels: Array.isArray(extra.usedSkillLabels)
         ? extra.usedSkillLabels
-        : []
+        : [],
+      valueJson: extra.valueJson || null,
+      widgets: this.normalizeWidgets(extra.widgets, extra.valueJson)
     };
     this.messages = [...this.messages, message].slice(-this.maxHistory);
     this.persistActiveHistory();
@@ -1402,6 +1428,91 @@ export default class AgentforceChat extends LightningElement {
         }
       })
     );
+  }
+
+  parseAgentValue(valueJson) {
+    if (!valueJson) {
+      return null;
+    }
+    if (typeof valueJson === "object") {
+      return valueJson;
+    }
+    try {
+      return JSON.parse(valueJson);
+    } catch {
+      return null;
+    }
+  }
+
+  normalizeWidgets(widgets, valueJson) {
+    const fromResponse = this.parseReturnedWidgets(widgets);
+    if (fromResponse.length > 0) {
+      return fromResponse;
+    }
+    return this.extractWidgetsFromValue(valueJson);
+  }
+
+  parseReturnedWidgets(widgets) {
+    if (!Array.isArray(widgets)) {
+      return [];
+    }
+    return widgets
+      .map((widget, index) => {
+        const name = widget?.name;
+        let payload = widget?.payload;
+        if (typeof widget?.payloadJson === "string") {
+          try {
+            payload = JSON.parse(widget.payloadJson);
+          } catch {
+            payload = null;
+          }
+        }
+        if (!name || payload === null || payload === undefined) {
+          return null;
+        }
+        return {
+          key: `${index}:${name}`,
+          name,
+          payload
+        };
+      })
+      .filter(Boolean);
+  }
+
+  extractWidgetsFromValue(valueJson) {
+    const value = this.parseAgentValue(valueJson);
+    if (!value || !Array.isArray(value.result)) {
+      return [];
+    }
+    const metaKeys = new Set([
+      "error_message",
+      "errorMessage",
+      "is_success",
+      "isSuccess",
+      "error_type",
+      "errorType"
+    ]);
+    const widgets = [];
+    value.result.forEach((item, resultIndex) => {
+      const payload = item?.value;
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+        return;
+      }
+      Object.entries(payload).forEach(([name, widgetPayload]) => {
+        if (metaKeys.has(name) || widgetPayload == null) {
+          return;
+        }
+        if (typeof widgetPayload !== "object") {
+          return;
+        }
+        widgets.push({
+          key: `${resultIndex}:${name}`,
+          name,
+          payload: widgetPayload
+        });
+      });
+    });
+    return widgets;
   }
 
   parseError(error) {

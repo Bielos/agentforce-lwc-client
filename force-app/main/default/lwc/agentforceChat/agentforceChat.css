@@ -159,6 +159,11 @@
   margin-left: 1rem;
 }
 
+.agentforce-chat__widget {
+  display: block;
+  margin-top: 0.5rem;
+}
+
 .agentforce-chat__composer {
   background-color: var(--slds-g-color-neutral-base-100, #ffffff);
 }

@@ -197,24 +197,43 @@
             </template>
 
             <div class="slds-media__body">
-              <div class="agentforce-chat__bubble">
-                <template lwc:if={message.useLinkifyText}>
+              <template lwc:if={message.hasWidgets}>
+                <div class="agentforce-chat__bubble" if:true={message.content}>
                   <lightning-formatted-text
                     value={message.content}
                     linkify
                   ></lightning-formatted-text>
+                </div>
+                <template for:each={message.widgets} for:item="widget">
+                  <c-agent-widget-card
+                    key={widget.key}
+                    class="agentforce-chat__widget"
+                    widget-name={widget.name}
+                    payload={widget.payload}
+                    onaction={handleWidgetAction}
+                  ></c-agent-widget-card>
                 </template>
-                <template lwc:elseif={useCustomMarkdownRenderer}>
-                  <c-markdown-viewer
-                    value={message.content}
-                  ></c-markdown-viewer>
-                </template>
-                <template lwc:else>
-                  <lightning-formatted-rich-text
-                    value={message.renderedContent}
-                  ></lightning-formatted-rich-text>
-                </template>
-              </div>
+              </template>
+              <template lwc:else>
+                <div class="agentforce-chat__bubble">
+                  <template lwc:if={message.useLinkifyText}>
+                    <lightning-formatted-text
+                      value={message.content}
+                      linkify
+                    ></lightning-formatted-text>
+                  </template>
+                  <template lwc:elseif={useCustomMarkdownRenderer}>
+                    <c-markdown-viewer
+                      value={message.content}
+                    ></c-markdown-viewer>
+                  </template>
+                  <template lwc:else>
+                    <lightning-formatted-rich-text
+                      value={message.renderedContent}
+                    ></lightning-formatted-rich-text>
+                  </template>
+                </div>
+              </template>
               <div class="agentforce-chat__meta">
                 <lightning-formatted-date-time
                   value={message.timestamp}

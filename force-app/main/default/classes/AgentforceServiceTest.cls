@@ -134,4 +134,122 @@ private class AgentforceServiceTest {
     System.assertEquals('S1', output.get('sessionId'));
     System.assertEquals('R1', output.get('requestId'));
   }
+
+  @IsTest
+  static void parseAgentOutput_readsInformMessageValue() {
+    String agentResponse =
+      '{"type":"InformMessage","value":{"result":[{"value":{"account_summary":{"accountName":"Annie Dubois","healthScore":80},"error_message":null}}],"feedbackId":"fb-1","message":"Structured account summary.","citedReferences":[{"id":"c1","title":"Account","url":"https://example.com/account"}],"isContentSafe":true}}';
+    Map<String, Object> output = new Map<String, Object>{
+      'sessionId' => '01a0a3c8-e9e9-76b3-adb0-6f1724d0bcee',
+      'agentResponse' => agentResponse
+    };
+
+    AgentforceService.ParsedAgentOutput parsed = AgentforceService.parseAgentOutput(
+      output
+    );
+
+    System.assertEquals('Structured account summary.', parsed.responseText);
+    System.assertNotEquals(null, parsed.valueJson);
+    System.assertEquals(1, parsed.widgets.size());
+    System.assertEquals('account_summary', parsed.widgets[0].name);
+    System.assert(parsed.widgets[0].payloadJson.contains('Annie Dubois'));
+    System.assertEquals(1, parsed.citations.size());
+    System.assertEquals('Account', parsed.citations[0].title);
+  }
+
+  @IsTest
+  static void parseAgentOutput_acceptsAlreadyParsedEnvelope() {
+    Map<String, Object> output = new Map<String, Object>{
+      'agentResponse' => new Map<String, Object>{
+        'type' => 'InformMessage',
+        'value' => new Map<String, Object>{
+          'message' => 'Parsed envelope.',
+          'result' => new List<Object>{
+            new Map<String, Object>{
+              'value' => new Map<String, Object>{
+                'account_summary' => new Map<String, Object>{
+                  'accountName' => 'Annie Dubois'
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+
+    AgentforceService.ParsedAgentOutput parsed = AgentforceService.parseAgentOutput(
+      output
+    );
+
+    System.assertEquals('Parsed envelope.', parsed.responseText);
+    System.assertEquals(1, parsed.widgets.size());
+    System.assertEquals('account_summary', parsed.widgets[0].name);
+    System.assert(parsed.widgets[0].payloadJson.contains('Annie Dubois'));
+  }
+
+  @IsTest
+  static void parseAgentOutput_extractsDynamicWidgetKey() {
+    Map<String, Object> output = new Map<String, Object>{
+      'agentResponse' => new Map<String, Object>{
+        'type' => 'InformMessage',
+        'value' => new Map<String, Object>{
+          'message' => 'Generic widget.',
+          'result' => new List<Object>{
+            new Map<String, Object>{
+              'value' => new Map<String, Object>{
+                'generic_section' => new Map<String, Object>{
+                  'title' => 'Portfolio'
+                },
+                'error_message' => null
+              }
+            }
+          }
+        }
+      }
+    };
+
+    AgentforceService.ParsedAgentOutput parsed = AgentforceService.parseAgentOutput(
+      output
+    );
+
+    System.assertEquals(1, parsed.widgets.size());
+    System.assertEquals('generic_section', parsed.widgets[0].name);
+    System.assert(parsed.widgets[0].payloadJson.contains('Portfolio'));
+  }
+
+  @IsTest
+  static void sendMessage_returnsInformMessageValueJson() {
+    AgentforceService.invoker = new ValueInvoker();
+
+    AgentforceService.AgentResponse response = AgentforceService.sendMessage(
+      'SearchAgent',
+      'Summarize Annie Dubois',
+      null
+    );
+
+    System.assertEquals('Here is a structured summary.', response.message.content);
+    System.assertNotEquals(null, response.valueJson);
+    System.assertEquals(1, response.widgets.size());
+    System.assertEquals('account_summary', response.widgets[0].name);
+  }
+
+  private class ValueInvoker implements AgentforceService.AgentInvoker {
+    public AgentforceService.InvocationResult invoke(
+      String agentApiName,
+      String userMessage,
+      String sessionId
+    ) {
+      AgentforceService.InvocationResult result = new AgentforceService.InvocationResult();
+      result.responseText = 'Here is a structured summary.';
+      result.sessionId = 'SESSION-VALUE';
+      result.requestId = 'REQ-VALUE';
+      result.citations = new List<AgentforceService.Citation>();
+      result.valueJson = '{"result":[{"value":{"account_summary":{"accountName":"Annie Dubois"}}}],"message":"Here is a structured summary."}';
+      AgentforceService.WidgetPayload widget = new AgentforceService.WidgetPayload();
+      widget.name = 'account_summary';
+      widget.payloadJson = '{"accountName":"Annie Dubois"}';
+      result.widgets = new List<AgentforceService.WidgetPayload>{ widget };
+      return result;
+    }
+  }
 }

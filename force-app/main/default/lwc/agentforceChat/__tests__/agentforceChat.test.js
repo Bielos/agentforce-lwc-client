@@ -576,4 +576,73 @@ describe("c-agentforce-chat", () => {
     const textarea = element.shadowRoot.querySelector("lightning-textarea");
     expect(textarea.value).toBe("dictated text");
   });
+
+  it("renders a dynamic widget payload returned by AgentforceService", async () => {
+    sendAgentMessage.mockResolvedValue({
+      message: {
+        id: "m-2",
+        role: "assistant",
+        content: "Here is a structured summary of the Annie Dubois client account."
+      },
+      sessionId: "session-1",
+      requestId: "req-1",
+      citations: [],
+      widgets: [
+        {
+          name: "account_summary",
+          payloadJson: JSON.stringify({
+            accountName: "Annie Dubois",
+            nextSteps: [
+              {
+                label: "Prepare the next meeting",
+                prompt: "Help me prepare the next meeting."
+              }
+            ]
+          })
+        }
+      ],
+      valueJson: JSON.stringify({
+        result: [
+          {
+            value: {
+              account_summary: {
+                accountName: "Annie Dubois"
+              }
+            }
+          }
+        ]
+      })
+    });
+
+    const element = createComponent({
+      agentApiName: "SearchAgent"
+    });
+    let responsePayload;
+    element.addEventListener("response", (event) => {
+      responsePayload = event.detail;
+    });
+
+    element.sendMessage("Summarize Annie Dubois");
+    await flushPromises();
+    await flushPromises();
+
+    expect(responsePayload.widgets[0].name).toBe("account_summary");
+    const card = element.shadowRoot.querySelector("c-agent-widget-card");
+    expect(card).not.toBeNull();
+    expect(card.widgetName).toBe("account_summary");
+    expect(card.payload.accountName).toBe("Annie Dubois");
+
+    card.dispatchEvent(
+      new CustomEvent("action", {
+        detail: { prompt: "Help me prepare the next meeting." }
+      })
+    );
+    await flushPromises();
+    await flushPromises();
+
+    expect(sendAgentMessage).toHaveBeenCalledTimes(2);
+    expect(sendAgentMessage.mock.calls[1][0]).toMatchObject({
+      message: "Help me prepare the next meeting."
+    });
+  });
 });

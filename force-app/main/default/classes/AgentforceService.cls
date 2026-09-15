@@ -7,6 +7,14 @@ public with sharing class AgentforceService {
   private static final Integer MAX_MESSAGE_LENGTH = 4000;
   private static final String ACTION_TYPE = 'generateAiAgentResponse';
   private static final String ACTION_NAME = 'generateAiAgentResponse';
+  private static final Set<String> WIDGET_META_KEYS = new Set<String>{
+    'error_message',
+    'errorMessage',
+    'is_success',
+    'isSuccess',
+    'error_type',
+    'errorType'
+  };
 
   /**
    * DTO that represents a chat message.
@@ -55,6 +63,10 @@ public with sharing class AgentforceService {
     @AuraEnabled
     public List<Citation> citations;
     @AuraEnabled
+    public String valueJson;
+    @AuraEnabled
+    public List<WidgetPayload> widgets;
+    @AuraEnabled
     public String errorCode;
     @AuraEnabled
     public Boolean retryable;
@@ -84,6 +96,29 @@ public with sharing class AgentforceService {
     public String sessionId;
     public String requestId;
     public List<Citation> citations;
+    public String valueJson;
+    public List<WidgetPayload> widgets;
+  }
+
+  /**
+   * Generic widget payload extracted from InformMessage.value.result.
+   * The widget name is the dynamic output key (for example account_summary).
+   */
+  public class WidgetPayload {
+    @AuraEnabled
+    public String name;
+    @AuraEnabled
+    public String payloadJson;
+  }
+
+  /**
+   * Parsed InformMessage envelope extracted from agentResponse.
+   */
+  public class ParsedAgentOutput {
+    public String responseText;
+    public String valueJson;
+    public List<WidgetPayload> widgets = new List<WidgetPayload>();
+    public List<Citation> citations = new List<Citation>();
   }
 
   /**
@@ -134,11 +169,16 @@ public with sharing class AgentforceService {
       }
 
       Map<String, Object> output = actionResult.getOutputParameters();
+      ParsedAgentOutput parsed = parseAgentOutput(output);
       InvocationResult normalized = new InvocationResult();
-      normalized.responseText = resolveResponseText(output);
+      normalized.responseText = parsed.responseText;
+      normalized.valueJson = parsed.valueJson;
+      normalized.widgets = parsed.widgets;
       normalized.sessionId = safeToString(output.get('sessionId'));
       normalized.requestId = safeToString(output.get('requestId'));
-      normalized.citations = parseCitations(output.get('citations'));
+      normalized.citations = parsed.citations == null
+        ? new List<Citation>()
+        : parsed.citations;
       return normalized;
     }
   }
@@ -186,6 +226,10 @@ public with sharing class AgentforceService {
       response.citations = result.citations == null
         ? new List<Citation>()
         : result.citations;
+      response.valueJson = result.valueJson;
+      response.widgets = result.widgets == null
+        ? new List<WidgetPayload>()
+        : result.widgets;
       response.retryable = false;
       return response;
     } catch (Exception ex) {
@@ -444,42 +488,111 @@ public with sharing class AgentforceService {
 
   @TestVisible
   private static String resolveResponseText(Map<String, Object> output) {
+    return parseAgentOutput(output).responseText;
+  }
+
+  /**
+   * Parses generateAiAgentResponse output, including InformMessage.value.
+   *
+   * @param output Invocable action output parameters.
+   * @return Parsed text, serialized value payload, and citations.
+   */
+  @TestVisible
+  private static ParsedAgentOutput parseAgentOutput(Map<String, Object> output) {
+    ParsedAgentOutput parsed = new ParsedAgentOutput();
     if (output == null) {
+      return parsed;
+    }
+
+    parsed.responseText = blankToNull(safeToString(output.get('response')));
+    parsed.citations = parseCitations(output.get('citations'));
+
+    Map<String, Object> envelope = coerceToMap(output.get('agentResponse'));
+    if (envelope == null) {
+      return parsed;
+    }
+
+    Map<String, Object> valueMap = coerceToMap(envelope.get('value'));
+    if (valueMap == null) {
+      return parsed;
+    }
+
+    parsed.valueJson = JSON.serialize(valueMap);
+    parsed.widgets = extractWidgets(valueMap);
+    if (String.isBlank(parsed.responseText)) {
+      parsed.responseText = blankToNull(safeToString(valueMap.get('message')));
+    }
+    if (parsed.citations.isEmpty()) {
+      parsed.citations = parseCitations(valueMap.get('citedReferences'));
+    }
+    return parsed;
+  }
+
+  /**
+   * Extracts dynamic widget payloads from InformMessage.value.result.
+   * Each non-metadata key on a result value is treated as a widget name.
+   *
+   * @param valueMap InformMessage value object.
+   * @return Widget payloads keyed by their dynamic output names.
+   */
+  @TestVisible
+  private static List<WidgetPayload> extractWidgets(Map<String, Object> valueMap) {
+    List<WidgetPayload> widgets = new List<WidgetPayload>();
+    if (valueMap == null || !(valueMap.get('result') instanceof List<Object>)) {
+      return widgets;
+    }
+
+    for (Object resultItem : (List<Object>) valueMap.get('result')) {
+      Map<String, Object> resultMap = coerceToMap(resultItem);
+      if (resultMap == null) {
+        continue;
+      }
+      Map<String, Object> payload = coerceToMap(resultMap.get('value'));
+      if (payload == null) {
+        continue;
+      }
+      for (String key : payload.keySet()) {
+        if (WIDGET_META_KEYS.contains(key) || payload.get(key) == null) {
+          continue;
+        }
+        Object widgetValue = payload.get(key);
+        if (
+          !(widgetValue instanceof Map<String, Object>) &&
+          !(widgetValue instanceof List<Object>)
+        ) {
+          continue;
+        }
+        WidgetPayload widget = new WidgetPayload();
+        widget.name = key;
+        widget.payloadJson = JSON.serialize(widgetValue);
+        widgets.add(widget);
+      }
+    }
+    return widgets;
+  }
+
+  @TestVisible
+  private static Map<String, Object> coerceToMap(Object raw) {
+    if (raw instanceof Map<String, Object>) {
+      return (Map<String, Object>) raw;
+    }
+    if (!(raw instanceof String) || String.isBlank((String) raw)) {
       return null;
     }
-
-    String responseText = safeToString(output.get('response'));
-    if (!String.isBlank(responseText)) {
-      return responseText;
-    }
-
-    if (
-      !output.containsKey('agentResponse') ||
-      output.get('agentResponse') == null
-    ) {
-      return null;
-    }
-
     try {
-      Object parsed = JSON.deserializeUntyped(
-        safeToString(output.get('agentResponse'))
-      );
-      if (!(parsed instanceof Map<String, Object>)) {
-        return null;
+      Object parsed = JSON.deserializeUntyped((String) raw);
+      if (parsed instanceof Map<String, Object>) {
+        return (Map<String, Object>) parsed;
       }
-
-      Map<String, Object> agentResponse = (Map<String, Object>) parsed;
-      if (!(agentResponse.get('value') instanceof Map<String, Object>)) {
-        return null;
-      }
-
-      Map<String, Object> valueMap = (Map<String, Object>) agentResponse.get(
-        'value'
-      );
-      return safeToString(valueMap.get('message'));
     } catch (Exception ex) {
       return null;
     }
+    return null;
+  }
+
+  @TestVisible
+  private static String blankToNull(String value) {
+    return String.isBlank(value) ? null : value;
   }
 
   @TestVisible
